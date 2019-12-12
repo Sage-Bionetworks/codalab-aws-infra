@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: 2010-09-09
+# Conditions:
+#   IsSandbox: !Equals [!Ref "AWS::AccountId", "563295687221"]
+Parameters:
+  Department:
+    Description: 'The department for this resource'
+    Type: String
+    AllowedPattern: '^\S*$'
+    ConstraintDescription: 'Must be string with no spaces'
+  Project:
+    Description: 'The name of the project that this resource is used for'
+    Type: String
+    AllowedPattern: '^\S*$'
+    ConstraintDescription: 'Must be string with no spaces'
+  OwnerEmail:
+    Description: 'Email address of the owner of this resource'
+    Type: String
+    AllowedPattern: '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
+    ConstraintDescription: 'Must be an acceptable email address syntax(i.e. joe.smith@sagebase.org)'
+Mappings:
+  AdminRoleArns:
+    "563295687221":
+      Arn: "arn:aws:iam::563295687221:role/accounts-AWSIAMAdminRole-1B5HUQPC19H69"
+    "055273631518":
+      Arn: "arn:aws:iam::055273631518:role/accounts-AWSIAMAdminRole-JL0BF315YDU0"
+Resources:
+  AWSKmsInfraKey:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: !Join
+        - '-'
+        - - !Ref AWS::StackName
+          - "InfraKey"
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "Allow administration of the key"
+            Effect: "Allow"
+            Principal:
+              AWS:
+                - !Join
+                  - ''
+                  - - 'arn:aws:iam::'
+                    - !Ref AWS::AccountId
+                    - ':root'
+                - !ImportValue us-east-1-bootstrap-CfServiceRoleArn
+                - !FindInMap [AdminRoleArns, !Ref "AWS::AccountId", Arn]
+            Action:
+              - "kms:Create*"
+              - "kms:Describe*"
+              - "kms:Enable*"
+              - "kms:List*"
+              - "kms:Put*"
+              - "kms:Update*"
+              - "kms:Revoke*"
+              - "kms:Disable*"
+              - "kms:Get*"
+              - "kms:Delete*"
+              - "kms:ScheduleKeyDeletion"
+              - "kms:CancelKeyDeletion"
+            Resource: "*"
+          -
+            Sid: "Allow use of the key"
+            Effect: "Allow"
+            Principal:
+              AWS:
+                - !ImportValue us-east-1-bootstrap-CfServiceRoleArn
+                - !FindInMap [AdminRoleArns, !Ref "AWS::AccountId", Arn]
+                - !GetAtt CodeDeployEC2Role.Arn
+            Action:
+              - "kms:Encrypt"
+              - "kms:Decrypt"
+              - "kms:ReEncrypt*"
+              - "kms:GenerateDataKey*"
+              - "kms:DescribeKey"
+            Resource: "*"
+      Tags:
+        - Key: "Department"
+          Value: !Ref Department
+        - Key: "Project"
+          Value: !Ref Project
+        - Key: "OwnerEmail"
+          Value: !Ref OwnerEmail
+  AWSKmsCodaLabInfraKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Join
+        - ''
+        - - 'alias/'
+          - !Ref AWS::StackName
+          - '/InfraKey'
+      TargetKeyId: !Ref AWSKmsInfraKey
+
+  CodaLabParameterStorePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: CodaLabParameterStorePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+            - ssm:DescribeParameters
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ssm:GetParameters
+            Resource: !Sub 'arn:aws:ssm:${AWS::Region}:563295687221:parameter/*'
+      Roles:
+      - !Ref CodeDeployEC2Role
+
+  CodaLabS3User:
+    Type: 'AWS::IAM::User'
+
+  CodaLabPrivateS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: "Department"
+          Value: !Ref Department
+        - Key: "Project"
+          Value: !Ref Project
+        - Key: "OwnerEmail"
+          Value: !Ref OwnerEmail
+
+  CodaLabPublicS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: "Department"
+          Value: !Ref Department
+        - Key: "Project"
+          Value: !Ref Project
+        - Key: "OwnerEmail"
+          Value: !Ref OwnerEmail
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Id: MyPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowCodeDeployFromEC2Role
+            Effect: Allow
+            Principal:
+              AWS:
+                - Fn::GetAtt: [ CodeDeployEC2Role, Arn ]
+            Action:
+              - s3:Get*
+              - s3:List*
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref CodaLabPublicS3Bucket
+                - /*
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref CodaLabPrivateS3Bucket
+                - /*
+          - Sid: AllowPutFromDeployUser
+            Effect: Allow
+            Principal:
+              AWS:
+                - !GetAtt PhccpS3User.Arn
+            Action:
+              - s3:PutObject
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref CodaLabPublicS3Bucket
+                - /*
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref CodaLabPrivateS3Bucket
+                - /*
+      Bucket: !Ref CodeDeployS3Bucket
+
+  CodaLabEC2RoleInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref CodaLabEC2Role
+Outputs:
+  CodaLabPrivateS3Bucket:
+    Value: !Ref CodaLabPrivateS3Bucket
+    Description: Name of private S3 bucket
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-CodaLabPrivateS3Bucket'
+  CodaLabPublicS3Bucket:
+    Value: !Ref CodaLabPublicS3Bucket
+    Description: Name of public S3 bucket
+    Export:
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-CodaLabPublicS3Bucket'
+  CodaLabEC2RoleInstanceProfile:
+    Value: !Ref CodaLabEC2RoleInstanceProfile
+    Description: Codalab ec2 role instance profile

@@ -1,0 +1,6 @@
+template_path: codalab_essentials.yaml
+stack_name: codalab-essentials
+parameters:
+  Department: "CompOnc"
+  Project: "phccp"
+  OwnerEmail: "thomas.yu@sagebase.org"

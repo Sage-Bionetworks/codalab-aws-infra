@@ -1,0 +1,19 @@
+template_path: codalab.yaml
+stack_name: codalab
+dependencies:
+  - develop/codalab_essentials.yaml
+parameters:
+
+  Department: "CompOnc"
+  Project: "phccp"
+  OwnerEmail: "thomas.yu@sagebase.org"
+
+  KeyName: "tomnew"
+  TagKey: "Name"
+  TagValue: "codalab"
+  
+  # SSLCertificateIdArn: "arn:aws:acm:us-east-1:563295687221:certificate/1a81b2e5-531b-4e3b-a81a-5af69ecdd602"
+  #sandcastle vpc
+  VpcId: vpc-0e9b80dc470a797d5
+  #public subnets
+  Subnets: "subnet-02f2acd15e5be53cd,subnet-031359c53fce9b312,subnet-0f19d4c62f9ab0f2c"
