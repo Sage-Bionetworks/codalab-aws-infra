@@ -94,7 +94,7 @@ Resources:
       InstanceType: t3.xlarge
       Monitoring: True
       DisableApiTermination: False
-      IamInstanceProfile: !Ref CodeDeployEC2RoleInstanceProfile
+      IamInstanceProfile: !Ref CodalabEC2RoleInstanceProfile
       KeyName: !Ref KeyName
       BlockDeviceMappings:
       - DeviceName: "/dev/xvda"
@@ -138,7 +138,7 @@ Resources:
               mkdir var && sudo chown ubuntu:ubuntu -R var
               mkdir /tmp/codalab && sudo chown ubuntu:ubuntu -R /tmp/codalab
               sudo chmod 777 /tmp/codalab
-              cp .env_sample .env
+              cp .env_sample .env # Need to modify the .env file here...
               docker-compose up -d
 
   #Load balancer
@@ -191,7 +191,7 @@ Resources:
     Properties:
       TargetType: instance
       Targets:
-        - Id: !Ref PHCCPEC2Instance
+        - Id: !Ref CodalabInstance
           Port: !Ref AppPort
       VpcId: !Ref VpcId
       Port: !Ref AppPort
@@ -200,7 +200,7 @@ Resources:
         - Key: "Name"
           Value: !Join
             - '-'
-            - - !Ref PHCCPEC2Instance
+            - - !Ref CodalabInstance
               - "ELB"
         - Key: "Department"
           Value: !Ref Department
@@ -222,7 +222,7 @@ Resources:
         - Key: "Name"
           Value: !Join
             - '-'
-            - - !Ref PHCCPEC2Instance
+            - - !Ref CodalabInstance
               - "ELB"
         - Key: "Department"
           Value: !Ref Department
@@ -244,24 +244,24 @@ Resources:
         - TargetGroupArn: !Ref ElbTargetGroup
           Type: forward
 
-  CodaLabServiceUser:
+  CodalabServiceUser:
     Type: 'AWS::IAM::User'
-  CodaLabServiceUserAccessKey:
+  CodalabServiceUserAccessKey:
     Type: 'AWS::IAM::AccessKey'
     Properties:
-      UserName: !Ref PhccpServiceUser
+      UserName: !Ref CodaLabServiceUser
 Outputs:
 
-  CodaLabServiceUserSecretAccessKey:
-    Value: !GetAtt CodaLabServiceUserAccessKey.SecretAccessKey
+  CodalabServiceUserSecretAccessKey:
+    Value: !GetAtt CodalabServiceUserAccessKey.SecretAccessKey
     Description: Secret access key of codalab service user
     Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-CodaLabServiceUserSecretAccessKey'
-  CodaLabServiceUserAccessKeyId:
-    Value: !Ref CodaLabServiceUserAccessKey
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-CodalabServiceUserSecretAccessKey'
+  CodalabServiceUserAccessKeyId:
+    Value: !Ref CodalabServiceUserAccessKey
     Description: Access key id of phccp service user
     Export:
-      Name: !Sub '${AWS::Region}-${AWS::StackName}-PhccpSerCodaLabServiceUserAccessKeyIdviceUserAccessKeyId'
+      Name: !Sub '${AWS::Region}-${AWS::StackName}-CodalabServiceUserAccessKeyId'
   LoadBalancerName:
     Value: !GetAtt LoadBalancer.LoadBalancerName
     Export:
